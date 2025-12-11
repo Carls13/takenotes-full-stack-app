@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
+import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
 import { CATEGORY_COLORS, CATEGORY_NAME, CategoryId, Note } from '@/src/lib/model';
 import { formatRelativeMD } from '@/src/lib/model';
@@ -22,18 +23,12 @@ export function NotesGrid({ notes, onOpen }: { notes: Note[]; onOpen: OpenHandle
 
 export function EmptyState() {
   const { user } = useAuth();
-  const router = useRouter();
-  const handleCreate = () => {
-    if (!user) return;
-    router.push('/notes/new');
-  };
   return (
-    <div className="flex h-full flex-col items-center justify-center rounded-lg border border-dashed border-zinc-300 p-10 text-center">
-      <div className="mb-2 text-lg font-semibold text-zinc-900">No notes yet</div>
-      <div className="mb-4 max-w-sm text-sm text-zinc-600">
-        Get started by creating your first note. Notes are saved automatically while you type.
+    <div className="flex flex-1 flex-col items-center justify-center text-center">
+      <Image src="/icons/coffee.png" alt="Coffee" width={220} height={220} />
+      <div className="mt-5 max-w-md text-base sm:text-lg" style={{ color: '#88642A' }}>
+        I’m just here waiting for your charming notes...
       </div>
-      <Button onClick={handleCreate}>Create your first note</Button>
     </div>
   );
 }
@@ -90,39 +85,52 @@ export function NoteEditor({ noteId }: { noteId?: string }) {
   }
 
   return (
-    <div className="min-h-[calc(100vh-2rem)] rounded-xl border border-zinc-200 p-4 sm:p-6" style={{ backgroundColor: bg }}>
-      <div className="mb-4 flex flex-col-reverse items-start justify-between gap-3 sm:flex-row sm:items-center">
-        <div className="text-xs text-zinc-700">Last edited: {lastEdited}</div>
-        <div className="flex items-center gap-2">
-          <select
-            className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm"
-            value={selectedCategory}
-            onChange={(e) => onCategoryChange(e.currentTarget.value as CategoryId)}
-            disabled
-          >
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {CATEGORY_NAME[c.id]}
-              </option>
-            ))}
-          </select>
-          <Button variant="secondary" onClick={() => router.push('/dashboard')}>Close</Button>
-        </div>
+    <div className="min-h-screen p-4 sm:p-6 overflow-hidden">
+      {/* Top controls outside note: category selector (left) and X close (right) */}
+      <div className="mb-3 flex items-center justify-between">
+        <select
+          className="bg-transparent px-2 py-1 text-sm text-black outline-none"
+          value={selectedCategory}
+          onChange={(e) => onCategoryChange(e.currentTarget.value as CategoryId)}
+          disabled
+        >
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>
+              {CATEGORY_NAME[c.id]}
+            </option>
+          ))}
+        </select>
+        <Button
+          unstyled
+          onClick={() => router.push('/dashboard')}
+          className="bg-transparent px-2 py-1 text-4xl leading-none text-[#88642A] cursor-pointer"
+          aria-label="Close"
+        >
+          ×
+        </Button>
       </div>
 
-      <div className="space-y-4">
-        <TextInput
-          value={note.title}
-          onChange={(e) => onTitleChange(e.currentTarget.value)}
-          placeholder="Title"
-          className="text-lg font-semibold"
-        />
-        <Textarea
-          value={note.content}
-          onChange={(e) => onContentChange(e.currentTarget.value)}
-          placeholder="Write your note here…"
-          className="min-h-[50vh]"
-        />
+      {/* Note panel with category-colored border/background and Last edited top-right */}
+      <div
+        className="rounded-xl border-[5px] p-4 sm:p-6 h-[calc(100vh-8rem)] flex flex-col"
+        style={{ backgroundColor: `${bg}88`, border: `6px solid ${bg}` }}
+      >
+        <div className="mb-2 flex justify-end text-xs text-zinc-700">Last edited: {lastEdited}</div>
+
+        <div className="flex-1 min-h-0 space-y-4 flex flex-col">
+          <TextInput
+            value={note.title}
+            onChange={(e) => onTitleChange(e.currentTarget.value)}
+            placeholder="Title"
+            className="bg-transparent text-black placeholder:text-black text-2xl sm:text-3xl font-semibold"
+          />
+          <Textarea
+            value={note.content}
+            onChange={(e) => onContentChange(e.currentTarget.value)}
+            placeholder="Write your note here…"
+            className="flex-1 min-h-0 resize-none bg-transparent text-black placeholder:text-black"
+          />
+        </div>
       </div>
     </div>
   );
@@ -140,61 +148,62 @@ export function NoteCreateForm() {
 
   const bg = CATEGORY_COLORS[category];
 
-  function onCancel() {
-    router.push('/dashboard');
-  }
-
-  function onCreate(e: React.FormEvent) {
-    e.preventDefault();
+  function exitToDashboard() {
     if (!user) return;
-    const n = createNote(user.id, category);
-    if (title || content) {
-      updateNote(user.id, n.id, { title, content });
+    if (!title && !content) {
+      router.push('/dashboard');
+      return;
     }
+    const n = createNote(user.id, category);
+    updateNote(user.id, n.id, { title, content });
     router.replace('/dashboard');
   }
 
   return (
-    <div
-      className="min-h-[calc(100vh-2rem)] rounded-xl border border-zinc-200 p-4 sm:p-6"
-      style={{ backgroundColor: bg }}
-    >
-      <form onSubmit={onCreate} className="space-y-4">
-        <div className="mb-2 flex flex-col-reverse items-start justify-between gap-3 sm:flex-row sm:items-center">
-          <div className="text-xs text-zinc-700">Create a new note</div>
-          <div className="flex items-center gap-2">
-            <select
-              className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm"
-              value={category}
-              onChange={(e) => setCategory(e.currentTarget.value as CategoryId)}
-            >
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {CATEGORY_NAME[c.id]}
-                </option>
-              ))}
-            </select>
-            <Button variant="secondary" type="button" onClick={onCancel}>
-              Cancel
-            </Button>
-            <Button type="submit">Create</Button>
-          </div>
+    <div className="min-h-[calc(100vh-2rem)] p-4 sm:p-6">
+      {/* Top controls outside of the note */}
+      <div className="mb-3 flex items-center justify-between">
+        <select
+          className="bg-transparent px-2 py-1 text-sm text-black outline-none"
+          value={category}
+          onChange={(e) => setCategory(e.currentTarget.value as CategoryId)}
+        >
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>
+              {CATEGORY_NAME[c.id]}
+            </option>
+          ))}
+        </select>
+        <Button
+          unstyled
+          onClick={exitToDashboard}
+          className="bg-transparent px-2 py-1 text-4xl leading-none text-[#88642A] cursor-pointer"
+          aria-label="Close"
+        >
+          ×
+        </Button>
+      </div>
+
+      {/* Note panel with padding and thick border */}
+      <div
+        className="rounded-xl border-[5px] p-4 sm:p-6 min-h-[calc(100vh-8rem)]"
+        style={{ backgroundColor: `${bg}88`, border: `6px solid ${bg}` }}
+      >
+        <div className="space-y-4">
+          <TextInput
+            value={title}
+            onChange={(e) => setTitle(e.currentTarget.value)}
+            placeholder="Note Title"
+            className="bg-transparent text-black placeholder:text-black text-2xl sm:text-3xl font-semibold"
+          />
+          <Textarea
+            value={content}
+            onChange={(e) => setContent(e.currentTarget.value)}
+            placeholder="Pour your heart out…"
+            className="min-h-[50vh] bg-transparent text-black placeholder:text-black resize-none"
+          />
         </div>
-
-        <TextInput
-          value={title}
-          onChange={(e) => setTitle(e.currentTarget.value)}
-          placeholder="Title"
-          className="text-lg font-semibold"
-        />
-
-        <Textarea
-          value={content}
-          onChange={(e) => setContent(e.currentTarget.value)}
-          placeholder="Write your note here…"
-          className="min-h-[50vh]"
-        />
-      </form>
+      </div>
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useAuth } from '@/src/contexts/AuthContext';
 
 export default function Home() {
@@ -19,7 +20,7 @@ export default function Home() {
 
   return (
     <div className="flex min-h-screen items-center justify-center">
-      <div className="animate-pulse text-sm text-zinc-600">Loading…</div>
+      <Image src="/icons/coffee.png" alt="Loading" width={240} height={240} className="animate-pulse" />
     </div>
   );
 }

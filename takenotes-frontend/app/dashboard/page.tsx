@@ -3,7 +3,7 @@
 import React, { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Protected from '@/src/components/Protected';
-import { Sidebar } from '@/src/components/ui';
+import { Sidebar, Button } from '@/src/components/ui';
 import { NotesGrid, EmptyState } from '@/src/components/NotesUI';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { CATEGORY_NAME, CategoryId, Note } from '@/src/lib/model';
@@ -26,16 +26,25 @@ export default function DashboardPage() {
   const handleOpen = (n: Note) => {
     router.push(`/notes/${n.id}`);
   };
+  const handleNewNote = () => {
+    router.push('/notes/new');
+  };
 
   return (
     <Protected>
       <div className="flex min-h-screen flex-col sm:flex-row">
         <Sidebar selected={selected} onSelect={setSelected} className="sm:min-h-screen" />
 
-        <main className="flex-1 p-4 sm:p-6">
-          <div className="mb-4">
+        <main className="flex-1 p-4 sm:p-6 flex flex-col">
+          <div className="mb-4 flex items-center justify-between">
             <h1 className="text-xl font-semibold text-zinc-900">{title}</h1>
-            <p className="text-sm text-zinc-600">Browse and manage your notes.</p>
+            <Button
+              unstyled
+              className="rounded-[46px] border-2 border-[#88642A] bg-transparent text-[#88642A] px-4 py-2 text-sm hover:bg-[#F3E6D4]"
+              onClick={handleNewNote}
+            >
+              + New Note
+            </Button>
           </div>
 
           {notes.length === 0 ? (

@@ -59,7 +59,7 @@ export default function SignUpPage() {
               value={email}
               onChange={(e) => setEmail(e.currentTarget.value)}
               unstyled
-              className="w-full bg-transparent border-2 border-[#88642A] rounded-[2px] px-3 py-2 text-sm outline-none focus:border-[#88642A] placeholder:text-black"
+              className="w-full bg-transparent text-black border-2 border-[#88642A] rounded-[2px] px-3 py-2 text-sm outline-none focus:border-[#88642A] placeholder:text-black"
             />
           </div>
 
@@ -70,7 +70,7 @@ export default function SignUpPage() {
               value={password}
               onChange={(e) => setPassword(e.currentTarget.value)}
               unstyled
-              inputClassName="w-full bg-transparent border-2 border-[#88642A] rounded-[2px] px-3 py-2 pr-10 text-sm outline-none focus:border-[#88642A] placeholder:text-black"
+              inputClassName="w-full bg-transparent text-black border-2 border-[#88642A] rounded-[2px] px-3 py-2 pr-10 text-sm outline-none focus:border-[#88642A] placeholder:text-black"
             />
           </div>
 
