@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
+  --background: #FAF1E3;
   --foreground: #171717;
 }
 
@@ -14,8 +14,10 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    /* Enforce the same app-wide background regardless of scheme */
+    --background: #FAF1E3;
+    /* Keep readable foreground on light background */
+    --foreground: #171717;
   }
 }
 

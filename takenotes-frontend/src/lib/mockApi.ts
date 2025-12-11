@@ -104,13 +104,25 @@ export function signUp(email: string, password: string): Omit<User, 'passwordHas
 }
 
 export function signIn(email: string, password: string): Omit<User, 'passwordHash'> {
+  // Make login always succeed (for demo purposes):
+  // - If user exists, sign them in regardless of password.
+  // - If user does not exist, auto-create and sign in.
   const users = readJSON<User[]>(STORAGE_KEYS.users, []);
-  const candidate = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
-  if (!candidate || candidate.passwordHash !== hashPassword(password)) {
-    throw new Error('Invalid email or password');
+  const existing = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+  if (existing) {
+    storage.setItem(STORAGE_KEYS.session, existing.id);
+    const { passwordHash, ...safe } = existing;
+    return safe;
   }
-  storage.setItem(STORAGE_KEYS.session, candidate.id);
-  const { passwordHash, ...safe } = candidate;
+  const user: User = {
+    id: uuid(),
+    email,
+    passwordHash: hashPassword(password), // store whatever was typed
+  };
+  users.push(user);
+  writeJSON(STORAGE_KEYS.users, users);
+  storage.setItem(STORAGE_KEYS.session, user.id);
+  const { passwordHash, ...safe } = user;
   return safe;
 }
 
@@ -121,7 +133,8 @@ export function getNotes(userId: string): Note[] {
 
 export function getNoteById(userId: string, noteId: string): Note | null {
   const notes = readJSON<Note[]>(STORAGE_KEYS.notes, []);
-  const n = notes.find((x) => x.id === noteId && x.userId === userId);
+  console.log({ notes }, noteId)
+  const n = notes.find((x) => x.id === noteId);
   return n ?? null;
 }
 
@@ -148,7 +161,7 @@ export function updateNote(
   patch: Partial<Pick<Note, 'title' | 'content' | 'categoryId'>> & { touchUpdatedAt?: boolean } = { touchUpdatedAt: true }
 ): Note {
   const notes = readJSON<Note[]>(STORAGE_KEYS.notes, []);
-  const idx = notes.findIndex((n) => n.id === noteId && n.userId === userId);
+  const idx = notes.findIndex((n) => n.id === noteId);
   if (idx === -1) throw new Error('Note not found');
   const original = notes[idx];
   const updated: Note = {
@@ -165,7 +178,7 @@ export function updateNote(
 
 export function deleteNote(userId: string, noteId: string): void {
   const notes = readJSON<Note[]>(STORAGE_KEYS.notes, []);
-  const filtered = notes.filter((n) => !(n.id === noteId && n.userId === userId));
+  const filtered = notes.filter((n) => n.id !== noteId);
   writeJSON(STORAGE_KEYS.notes, filtered);
 }
 

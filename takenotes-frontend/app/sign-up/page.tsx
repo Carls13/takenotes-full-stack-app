@@ -7,8 +7,8 @@ import React, { useEffect, useState } from 'react';
 import { Button, PasswordInput, TextInput } from '@/src/components/ui';
 import { useAuth } from '@/src/contexts/AuthContext';
 
-export default function SignInPage() {
-  const { signIn, user, loading } = useAuth();
+export default function SignUpPage() {
+  const { signUp, user, loading } = useAuth();
   const router = useRouter();
 
   const [email, setEmail] = useState('');
@@ -30,10 +30,10 @@ export default function SignInPage() {
     setSubmitting(true);
     setError(null);
     try {
-      await signIn(email, password);
+      await signUp(email, password);
       router.replace('/dashboard');
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to sign in';
+      const message = err instanceof Error ? err.message : 'Failed to sign up';
       setError(message);
     } finally {
       setSubmitting(false);
@@ -45,9 +45,9 @@ export default function SignInPage() {
       <div className="w-full max-w-md p-6">
         <div className="mb-6 text-center">
           <div className="mb-3 flex justify-center">
-            <Image src="/icons/cactus.png" alt="Cactus" width={120} height={120} />
+            <Image src="/icons/cat.png" alt="Cat" width={120} height={120} />
           </div>
-          <h1 className="text-4xl" style={{ fontFamily: 'var(--font-inria-serif)', color: '#88642A' }}>Yay, You&apos;re Back!</h1>
+          <h1 className="text-4xl" style={{ fontFamily: 'var(--font-inria-serif)', color: '#88642A' }}>Yay, New Friend!</h1>
         </div>
 
         <form onSubmit={onSubmit} className="space-y-4">
@@ -66,7 +66,7 @@ export default function SignInPage() {
           <div>
             <PasswordInput
               placeholder="Password"
-              autoComplete="current-password"
+              autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.currentTarget.value)}
               unstyled
@@ -86,13 +86,13 @@ export default function SignInPage() {
             className="w-full rounded-[46px] border-2 border-[#88642A] bg-transparent text-[#88642A] px-4 py-2 text-sm hover:bg-[#F3E6D4]"
             disabled={submitting || loading}
           >
-            {submitting ? 'Signing in…' : 'Login'}
+            {submitting ? 'Creating account…' : 'Sign Up'}
           </Button>
         </form>
 
         <div className="mt-6 text-center text-sm">
-          <Link className="font-medium underline" style={{ color: '#88642A' }} href="/sign-up">
-            Oops! I&apos;ve never been here before
+          <Link className="font-medium underline" href="/sign-in" style={{ color: '#88642A' }}>
+            We’re already friends!
           </Link>
         </div>
       </div>

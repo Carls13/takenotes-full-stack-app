@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { CATEGORY_NAME, CATEGORY_COLORS, CategoryId, Note } from '@/src/lib/model';
 import { formatRelativeMD, truncate } from '@/src/lib/model';
-import { createNote, getCategoryCounts } from '@/src/lib/mockApi';
+import { getCategoryCounts } from '@/src/lib/mockApi';
 import { useAuth } from '@/src/contexts/AuthContext';
 
 function cx(...classes: Array<string | false | null | undefined>) {
@@ -16,8 +16,9 @@ export function Button({
   children,
   className,
   variant = 'primary',
+  unstyled = false,
   ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'ghost' }) {
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'ghost'; unstyled?: boolean }) {
   const base =
     'inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50';
   const variants: Record<string, string> = {
@@ -27,7 +28,7 @@ export function Button({
     ghost: 'bg-transparent text-black hover:bg-zinc-100 focus:ring-zinc-300',
   };
   return (
-    <button className={cx(base, variants[variant], className)} {...props}>
+    <button className={unstyled ? className : cx(base, variants[variant], className)} {...props}>
       {children}
     </button>
   );
@@ -35,14 +36,17 @@ export function Button({
 
 export function TextInput({
   className,
+  unstyled = false,
   ...props
-}: React.InputHTMLAttributes<HTMLInputElement>) {
+}: React.InputHTMLAttributes<HTMLInputElement> & { unstyled?: boolean }) {
   return (
     <input
-      className={cx(
-        'w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-0 focus:border-zinc-400',
-        className
-      )}
+      className={unstyled
+        ? className
+        : cx(
+            'w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-0 focus:border-zinc-400',
+            className
+          )}
       {...props}
     />
   );
@@ -50,23 +54,30 @@ export function TextInput({
 
 export function PasswordInput({
   className,
+  inputClassName,
+  unstyled = false,
   ...props
-}: React.InputHTMLAttributes<HTMLInputElement>) {
+}: React.InputHTMLAttributes<HTMLInputElement> & { inputClassName?: string; unstyled?: boolean }) {
   const [visible, setVisible] = useState(false);
   return (
     <div className={cx('relative', className)}>
       <input
         type={visible ? 'text' : 'password'}
-        className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 pr-10 text-sm outline-none focus:border-zinc-400"
+        className={unstyled
+          ? inputClassName
+          : cx(
+              'w-full rounded-md border border-zinc-300 bg-white px-3 py-2 pr-10 text-sm outline-none focus:border-zinc-400',
+              inputClassName
+            )}
         {...props}
       />
       <button
         type="button"
         onClick={() => setVisible((v) => !v)}
-        className="absolute inset-y-0 right-0 flex items-center px-3 text-xs text-zinc-600 hover:text-zinc-900"
+        className="absolute inset-y-0 right-0 flex items-center px-3"
         aria-label={visible ? 'Hide password' : 'Show password'}
       >
-        {visible ? 'Hide' : 'Show'}
+        <img src="/icons/eye.png" alt="Toggle visibility" className="h-4 w-4" />
       </button>
     </div>
   );
@@ -178,8 +189,7 @@ export function Sidebar({
 
   const handleNewNote = () => {
     if (!user) return;
-    const n = createNote(user.id);
-    router.push(`/notes/${n.id}`);
+    router.push('/notes/new');
   };
 
   return (
