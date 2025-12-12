@@ -3,8 +3,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Protected from '@/src/components/Protected';
-import { Sidebar, Button } from '@/src/components/ui';
-import { NotesGrid, EmptyState } from '@/src/components/NotesUI';
+import { Sidebar } from '@/src/components/Sidebar';
+import { Button } from '@/src/components/Button';
+import { NotesGrid } from '@/src/components/NotesGrid';
+import { EmptyState } from '@/src/components/EmptyState';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { CATEGORY_NAME, CategoryId, Note } from '@/src/lib/model';
 import { filterNotesByCategory, getNotes } from '@/src/lib/mockApi';

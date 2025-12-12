@@ -4,7 +4,9 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
-import { Button, PasswordInput, TextInput } from '@/src/components/ui';
+import { Button } from '@/src/components/Button';
+import { PasswordInput } from '@/src/components/PasswordInput';
+import { TextInput } from '@/src/components/TextInput';
 import { useAuth } from '@/src/contexts/AuthContext';
 
 export default function SignUpPage() {

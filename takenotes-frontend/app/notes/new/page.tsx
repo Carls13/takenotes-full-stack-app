@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Protected from '@/src/components/Protected';
-import { NoteCreateForm } from '@/src/components/NotesUI';
+import { NoteCreateForm } from '@/src/components/NoteCreateForm';
 
 export default function NewNotePage() {
   return (

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Protected from '@/src/components/Protected';
-import { NoteEditor } from '@/src/components/NotesUI';
+import { NoteEditor } from '@/src/components/NoteEditor';
 
 export default function NotePage({ params }: { params: { id: string } }) {
   const { id } = params;
