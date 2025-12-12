@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Inria_Serif } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "../src/contexts/AuthContext";
+import { ToastProvider } from "@/src/components/ToastProvider";
 import { DarkModeToggle } from "@/src/components/DarkModeToggle";
 
 const geistSans = Geist({
@@ -36,8 +37,10 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${inriaSerif.variable} antialiased`}
       >
         <AuthProvider>
-          <DarkModeToggle />
-          {children}
+          <ToastProvider>
+            <DarkModeToggle />
+            {children}
+          </ToastProvider>
         </AuthProvider>
       </body>
     </html>

@@ -34,6 +34,7 @@ function clearTokens() {
 
 // Axios instance with auth and auto-refresh logic
 const http = axios.create({ baseURL: BASE, headers: { 'Content-Type': 'application/json' } });
+import { notifyErrorFromAxios, notifyError } from '@/src/lib/notifications';
 
 http.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const access = getAccess();
@@ -65,9 +66,15 @@ http.interceptors.response.use(
           return http(originalRequest);
         }
       } catch (e) {
-        // fallthrough to reject
+        // Refresh failed: clear tokens and surface message
+        clearTokens();
+        notifyError('Session expired. Please sign in again.', 'Authentication');
       }
     }
+    // Any other error: surface a toast notification
+    try {
+      notifyErrorFromAxios(error);
+    } catch {}
     return Promise.reject(error);
   }
 );
