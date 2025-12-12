@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { NoteWithExtras, CATEGORY_NAME } from '@/src/lib/model';
-import { formatRelativeMD, truncate } from '@/src/lib/model';
+import { formatRelativeMD } from '@/src/lib/model';
 import { cx } from './cx';
 
 export function NoteCard({
@@ -30,8 +30,8 @@ export function NoteCard({
         <span className="font-bold">{date}</span>
         <span className="font-medium">{CATEGORY_NAME[note.categoryId]}</span>
       </div>
-      <h3 className="mb-1 line-clamp-1 text-sm font-semibold text-black">{truncate(previewTitle, 60)}</h3>
-      <p className="line-clamp-6 text-xs text-black">{previewContent}</p>
+      <h3 className="mb-1 line-clamp-1 text-sm font-semibold text-black">{previewTitle}</h3>
+      <p className="line-clamp-12 text-xs text-black">{previewContent}</p>
     </div>
   );
 }
