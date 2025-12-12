@@ -23,7 +23,7 @@ export function PasswordInput({
         className="absolute inset-y-0 right-0 flex items-center px-3 cursor-pointer"
         aria-label={visible ? 'Hide password' : 'Show password'}
       >
-        <img src={visible ? '/icons/eye-open.png' : '/icons/eye.png'} alt="Toggle visibility" className="h-4 w-4" />
+        <img src={!visible ? '/icons/eye-open.png' : '/icons/eye.png'} alt="Toggle visibility" className="h-4 w-4" />
       </button>
     </div>
   );
