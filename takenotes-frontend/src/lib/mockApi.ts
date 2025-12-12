@@ -1,198 +1,205 @@
-// Mocked client-side API using localStorage with SSR-safe memory fallback
+// Frontend API client backed by the Django backend
 
 'use client';
 
-import { Category, CategoryId, DEFAULT_CATEGORIES, Note, User, nowIso } from './model';
+import { Category, CategoryId, Note, User } from './model';
 
-const STORAGE_KEYS = {
-  users: 'tn_users',
-  notes: 'tn_notes',
-  session: 'tn_session_user_id',
-} as const;
-
-type StorageLike = {
-  getItem(key: string): string | null;
-  setItem(key: string, value: string): void;
-  removeItem(key: string): void;
+const BASE = 'http://localhost:8000';
+const AUTH = {
+  access: 'tn_jwt_access',
+  refresh: 'tn_jwt_refresh',
+  email: 'tn_user_email',
 };
 
-function createMemoryStorage(): StorageLike {
-  const map = new Map<string, string>();
-  return {
-    getItem: (k) => (map.has(k) ? (map.get(k) as string) : null),
-    setItem: (k, v) => void map.set(k, v),
-    removeItem: (k) => void map.delete(k),
-  };
+function getAccess(): string | null {
+  return typeof window === 'undefined' ? null : localStorage.getItem(AUTH.access);
+}
+function getRefresh(): string | null {
+  return typeof window === 'undefined' ? null : localStorage.getItem(AUTH.refresh);
+}
+function setTokens(access: string, refresh: string, email?: string) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(AUTH.access, access);
+  localStorage.setItem(AUTH.refresh, refresh);
+  if (email) localStorage.setItem(AUTH.email, email);
+}
+function clearTokens() {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(AUTH.access);
+  localStorage.removeItem(AUTH.refresh);
+  localStorage.removeItem(AUTH.email);
 }
 
-const storage: StorageLike =
-  typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
-    ? window.localStorage
-    : createMemoryStorage();
-
-// Helpers
-
-function readJSON<T>(key: string, fallback: T): T {
-  try {
-    const raw = storage.getItem(key);
-    if (!raw) return fallback;
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
+async function refreshIfNeeded(resp: Response, retry: () => Promise<Response>): Promise<Response> {
+  if (resp.status !== 401) return resp;
+  const refresh = getRefresh();
+  if (!refresh) return resp;
+  const r = await fetch(`${BASE}/api/auth/token/refresh/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refresh }),
+  });
+  if (!r.ok) return resp;
+  const data = await r.json();
+  const newAccess = data.access as string;
+  if (newAccess) {
+    localStorage.setItem(AUTH.access, newAccess);
+    return retry();
   }
+  return resp;
 }
 
-function writeJSON<T>(key: string, value: T): void {
-  storage.setItem(key, JSON.stringify(value));
-}
-
-function uuid(): string {
-  const c = (globalThis as { crypto?: Crypto }).crypto;
-  if (c && typeof c.randomUUID === 'function') {
-    return c.randomUUID();
+async function api(path: string, init?: RequestInit): Promise<Response> {
+  const access = getAccess();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (access) headers['Authorization'] = `Bearer ${access}`;
+  const attempt = () => fetch(`${BASE}${path}`, { ...init, headers: { ...headers, ...(init?.headers as any) } });
+  const res = await attempt();
+  if (res.status === 401) {
+    const retryRes = await refreshIfNeeded(res, attempt);
+    if (retryRes !== res) return retryRes;
   }
-  // Fallback
-  return 'id-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+  return res;
 }
 
-function hashPassword(pw: string): string {
-  // Mock hash (NOT secure; demo only)
-  if (typeof btoa !== 'undefined') return btoa(pw).split('').reverse().join('');
-  return pw.split('').reverse().join('');
-}
-
-// Public API
-
-export function getCategories(): Category[] {
-  return DEFAULT_CATEGORIES;
-}
-
-export function getSessionUserId(): string | null {
-  return storage.getItem(STORAGE_KEYS.session);
-}
-
+// Auth
 export function getCurrentUser(): Omit<User, 'passwordHash'> | null {
-  const uid = getSessionUserId();
-  if (!uid) return null;
-  const users = readJSON<User[]>(STORAGE_KEYS.users, []);
-  const found = users.find((u) => u.id === uid);
-  if (!found) return null;
-  const { passwordHash, ...safe } = found;
-  return safe;
+  const access = getAccess();
+  const email = typeof window === 'undefined' ? null : localStorage.getItem(AUTH.email);
+  if (!access || !email) return null;
+  return { id: 'me', email } as Omit<User, 'passwordHash'>;
 }
 
 export function signOut(): void {
-  storage.removeItem(STORAGE_KEYS.session);
+  clearTokens();
 }
 
-export function signUp(email: string, password: string): Omit<User, 'passwordHash'> {
-  const users = readJSON<User[]>(STORAGE_KEYS.users, []);
-  const existing = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
-  if (existing) {
-    throw new Error('Email already registered');
-  }
-  const user: User = {
-    id: uuid(),
-    email,
-    passwordHash: hashPassword(password),
-  };
-  users.push(user);
-  writeJSON(STORAGE_KEYS.users, users);
-  storage.setItem(STORAGE_KEYS.session, user.id);
-  const { passwordHash, ...safe } = user;
-  return safe;
+export async function signUp(email: string, password: string): Promise<Omit<User, 'passwordHash'>> {
+  const r = await fetch(`${BASE}/api/auth/register/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    // Backend registers with {email, password}; it then uses email as username internally
+    body: JSON.stringify({ username: email, password }),
+  });
+  if (!r.ok) throw new Error('Failed to register');
+  const data = await r.json();
+  // Tokens are nested under "tokens" for register response
+  const access = data?.tokens?.access ?? data?.access;
+  const refresh = data?.tokens?.refresh ?? data?.refresh;
+  if (!access || !refresh) throw new Error('Registration succeeded but tokens missing');
+  setTokens(access, refresh, email);
+  return { id: 'me', email } as Omit<User, 'passwordHash'>;
 }
 
-export function signIn(email: string, password: string): Omit<User, 'passwordHash'> {
-  // Make login always succeed (for demo purposes):
-  // - If user exists, sign them in regardless of password.
-  // - If user does not exist, auto-create and sign in.
-  const users = readJSON<User[]>(STORAGE_KEYS.users, []);
-  const existing = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
-  if (existing) {
-    storage.setItem(STORAGE_KEYS.session, existing.id);
-    const { passwordHash, ...safe } = existing;
-    return safe;
-  }
-  const user: User = {
-    id: uuid(),
-    email,
-    passwordHash: hashPassword(password), // store whatever was typed
-  };
-  users.push(user);
-  writeJSON(STORAGE_KEYS.users, users);
-  storage.setItem(STORAGE_KEYS.session, user.id);
-  const { passwordHash, ...safe } = user;
-  return safe;
+export async function signIn(email: string, password: string): Promise<Omit<User, 'passwordHash'>> {
+  const r = await fetch(`${BASE}/api/auth/token/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: email, password }),
+  });
+  if (!r.ok) throw new Error('Failed to sign in');
+  const data = await r.json();
+  setTokens(data.access, data.refresh, email);
+  return { id: 'me', email } as Omit<User, 'passwordHash'>;
 }
 
-export function getNotes(userId: string): Note[] {
-  const notes = readJSON<Note[]>(STORAGE_KEYS.notes, []);
-  return notes.filter((n) => n.userId === userId).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+// Categories
+export async function getCategories(): Promise<Category[]> {
+  const r = await api('/api/categories/');
+  if (!r.ok) throw new Error('Failed to load categories');
+  const data = await r.json();
+  return data as Category[];
 }
 
-export function getNoteById(userId: string, noteId: string): Note | null {
-  const notes = readJSON<Note[]>(STORAGE_KEYS.notes, []);
-  console.log({ notes }, noteId)
-  const n = notes.find((x) => x.id === noteId);
-  return n ?? null;
-}
-
-export function createNote(userId: string, categoryId: CategoryId = 'random'): Note {
-  const notes = readJSON<Note[]>(STORAGE_KEYS.notes, []);
-  const now = nowIso();
-  const note: Note = {
-    id: uuid(),
-    userId,
-    title: '',
-    content: '',
-    categoryId,
-    createdAt: now,
-    updatedAt: now,
-  };
-  notes.push(note);
-  writeJSON(STORAGE_KEYS.notes, notes);
-  return note;
-}
-
-export function updateNote(
-  userId: string,
-  noteId: string,
-  patch: Partial<Pick<Note, 'title' | 'content' | 'categoryId'>> & { touchUpdatedAt?: boolean } = { touchUpdatedAt: true }
-): Note {
-  const notes = readJSON<Note[]>(STORAGE_KEYS.notes, []);
-  const idx = notes.findIndex((n) => n.id === noteId);
-  if (idx === -1) throw new Error('Note not found');
-  const original = notes[idx];
-  const updated: Note = {
-    ...original,
-    ...('title' in patch ? { title: patch.title ?? '' } : {}),
-    ...('content' in patch ? { content: patch.content ?? '' } : {}),
-    ...('categoryId' in patch ? { categoryId: (patch.categoryId ?? original.categoryId) as CategoryId } : {}),
-    updatedAt: patch.touchUpdatedAt === false ? original.updatedAt : nowIso(),
-  };
-  notes[idx] = updated;
-  writeJSON(STORAGE_KEYS.notes, notes);
-  return updated;
-}
-
-export function deleteNote(userId: string, noteId: string): void {
-  const notes = readJSON<Note[]>(STORAGE_KEYS.notes, []);
-  const filtered = notes.filter((n) => n.id !== noteId);
-  writeJSON(STORAGE_KEYS.notes, filtered);
-}
-
-export function getCategoryCounts(userId: string): Record<CategoryId, number> {
-  const notes = getNotes(userId);
-  const counts: Record<CategoryId, number> = { random: 0, school: 0, personal: 0 };
-  for (const n of notes) {
-    counts[n.categoryId] += 1;
+export async function getCategoryCounts(_userId: string): Promise<Record<string, number>> {
+  // Build counts by category_name from the notes list (server provides category_name on each note)
+  const r = await api('/api/notes/');
+  if (!r.ok) throw new Error('Failed to load notes');
+  const data = await r.json();
+  const counts: Record<string, number> = {};
+  for (const n of (data as any[])) {
+    const name = (n.category_name as string) || 'Uncategorized';
+    counts[name] = (counts[name] ?? 0) + 1;
   }
   return counts;
 }
 
-export function filterNotesByCategory(userId: string, categoryId?: CategoryId): Note[] {
-  const notes = getNotes(userId);
-  if (!categoryId) return notes;
-  return notes.filter((n) => n.categoryId === categoryId);
+// Notes
+function toNote(n: any): Note {
+  return {
+    id: n.id,
+    userId: 'me',
+    title: n.title ?? '',
+    content: n.content ?? '',
+    categoryId: (n.category as string) ?? 'random',
+    createdAt: n.created_at,
+    updatedAt: n.updated_at,
+    // attach conveniences for UI that can read via (note as any)
+    ...(n.category_name ? { category_name: n.category_name } : {}),
+    ...(n.category_color ? { category_color: n.category_color } : {}),
+    ...(n.last_edited_label ? { last_edited_label: n.last_edited_label } : {}),
+  } as any;
+}
+
+export async function getNotes(_userId: string): Promise<Note[]> {
+  const r = await api('/api/notes/');
+  if (!r.ok) throw new Error('Failed to load notes');
+  const data = await r.json();
+  return (data as any[]).map(toNote);
+}
+
+export async function filterNotesByCategory(_userId: string, categoryId?: CategoryId): Promise<Note[]> {
+  if (!categoryId) return getNotes('me');
+  // Map known names to actual category UUID by listing categories first if necessary
+  let cid = categoryId as string;
+  if (['random', 'school', 'personal'].includes(categoryId as string)) {
+    const cats = await getCategories();
+    const nameLookup: Record<string, string> = {};
+    for (const c of cats) nameLookup[c.name.toLowerCase()] = c.id;
+    cid =
+      (categoryId === 'random' && (nameLookup['random thoughts'] || nameLookup['random'])) ||
+      (categoryId === 'school' && nameLookup['school']) ||
+      (categoryId === 'personal' && nameLookup['personal']) ||
+      (categoryId as string);
+  }
+  const r = await api(`/api/notes/?category=${encodeURIComponent(cid)}`);
+  if (!r.ok) throw new Error('Failed to load notes');
+  const data = await r.json();
+  return (data as any[]).map(toNote);
+}
+
+export async function getNoteById(_userId: string, noteId: string): Promise<Note | null> {
+  const r = await api(`/api/notes/${noteId}/`);
+  if (!r.ok) return null;
+  const data = await r.json();
+  return toNote(data);
+}
+
+export async function createNote(_userId: string, categoryId?: string): Promise<Note> {
+  const body: any = {};
+  if (categoryId) body.category = categoryId;
+  const r = await api('/api/notes/', { method: 'POST', body: JSON.stringify(body) });
+  if (!r.ok) throw new Error('Failed to create note');
+  const data = await r.json();
+  return toNote(data);
+}
+
+export async function updateNote(
+  _userId: string,
+  noteId: string,
+  patch: Partial<Pick<Note, 'title' | 'content' | 'categoryId'>> & { touchUpdatedAt?: boolean } = { touchUpdatedAt: true }
+): Promise<Note> {
+  const payload: any = {};
+  if (typeof patch.title === 'string') payload.title = patch.title;
+  if (typeof patch.content === 'string') payload.content = patch.content;
+  if (typeof patch.categoryId === 'string') payload.category = patch.categoryId;
+  const r = await api(`/api/notes/${noteId}/`, { method: 'PATCH', body: JSON.stringify(payload) });
+  if (!r.ok) throw new Error('Failed to update note');
+  const data = await r.json();
+  return toNote(data);
+}
+
+export async function deleteNote(_userId: string, noteId: string): Promise<void> {
+  const r = await api(`/api/notes/${noteId}/`, { method: 'DELETE' });
+  if (!r.ok && r.status !== 204) throw new Error('Failed to delete note');
 }

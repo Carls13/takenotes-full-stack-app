@@ -2,8 +2,8 @@
 
 import React, { useMemo, useState } from 'react';
 import Image from 'next/image';
-import { useParams, useRouter } from 'next/navigation';
-import { CATEGORY_COLORS, CATEGORY_NAME, CategoryId, Note } from '@/src/lib/model';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { CATEGORY_COLORS, CATEGORY_NAME, CategoryId, Note, Category } from '@/src/lib/model';
 import { formatRelativeMD } from '@/src/lib/model';
 import { Button, TextInput, Textarea, NoteCard } from '@/src/components/ui';
 import { getCategories, getNoteById, updateNote, createNote } from '@/src/lib/mockApi';
@@ -39,17 +39,40 @@ export function NoteEditor({ noteId }: { noteId?: string }) {
   const params = useParams<{ id: string }>();
   const resolvedNoteId = noteId ?? params?.id;
   const [version, setVersion] = useState(0);
-  const note = user && resolvedNoteId ? getNoteById(user.id, resolvedNoteId) : null;
+  const [note, setNote] = useState<Note | null>(null);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [titleDraft, setTitleDraft] = useState<string>('');
+  const [contentDraft, setContentDraft] = useState<string>('');
 
-  const categories = useMemo(() => getCategories(), []);
-  const [selectedCategory, setSelectedCategory] = useState<CategoryId>(note?.categoryId ?? 'random');
+  React.useEffect(() => {
+    let cancel = false;
+    async function load() {
+      if (!user || !resolvedNoteId) return;
+      const n = await getNoteById(user.id, resolvedNoteId);
+      if (!cancel) {
+        setNote(n);
+        if (n) {
+          setSelectedCategory(((n as any).category as string) || (n.categoryId as any));
+          setTitleDraft(n.title ?? '');
+          setContentDraft(n.content ?? '');
+        }
+      }
+      const cats = await getCategories();
+      if (!cancel) setCategories(cats as any[]);
+    }
+    load();
+    return () => {
+      cancel = true;
+    };
+  }, [user, resolvedNoteId, version]);
 
   // keep local select state in sync with the latest note value (e.g., when navigating between notes)
   React.useEffect(() => {
     if (note) setSelectedCategory(note.categoryId);
   }, [note?.id, note?.categoryId]);
 
-  // no effect needed; we read the note directly from storage each render
+  // data loaded via effect
 
   if (!user) return null;
 
@@ -62,26 +85,29 @@ export function NoteEditor({ noteId }: { noteId?: string }) {
     );
   }
 
-  const bg = CATEGORY_COLORS[note.categoryId];
+  const bg = ((note as any).category_color as string) || CATEGORY_COLORS[note.categoryId];
   const lastEdited = formatRelativeMD(note.updatedAt);
 
   function onTitleChange(next: string) {
-    if (!user || !note) return;
-    updateNote(user.id, note.id, { title: next });
-    setVersion((v) => v + 1);
+    setTitleDraft(next);
   }
 
   function onContentChange(next: string) {
-    if (!user || !note) return;
-    updateNote(user.id, note.id, { content: next });
-    setVersion((v) => v + 1);
+    setContentDraft(next);
   }
 
-  function onCategoryChange(next: CategoryId) {
-    if (!user || !note) return;
+  function onCategoryChange(next: string) {
     setSelectedCategory(next);
-    updateNote(user.id, note.id, { categoryId: next });
-    setVersion((v) => v + 1);
+  }
+
+  async function onSaveAndClose() {
+    if (!user || !note) return;
+    await updateNote(user.id, note.id, {
+      title: titleDraft,
+      content: contentDraft,
+      categoryId: selectedCategory as any,
+    });
+    router.push('/dashboard');
   }
 
   return (
@@ -91,23 +117,23 @@ export function NoteEditor({ noteId }: { noteId?: string }) {
         <select
           className="bg-transparent px-2 py-1 text-sm text-black outline-none"
           value={selectedCategory}
-          onChange={(e) => onCategoryChange(e.currentTarget.value as CategoryId)}
+          onChange={(e) => onCategoryChange(e.currentTarget.value)}
           disabled
         >
-          {categories.map((c) => (
+          {categories.map((c: any) => (
             <option key={c.id} value={c.id}>
-              {CATEGORY_NAME[c.id]}
+              {c.name}
             </option>
           ))}
         </select>
-        <Button
-          unstyled
-          onClick={() => router.push('/dashboard')}
-          className="bg-transparent px-2 py-1 text-4xl leading-none text-[#88642A] cursor-pointer"
-          aria-label="Close"
-        >
-          ×
-        </Button>
+          <Button
+            unstyled
+            onClick={onSaveAndClose}
+            className="bg-transparent px-2 py-1 text-4xl leading-none text-[#88642A] cursor-pointer"
+            aria-label="Close"
+          >
+            ×
+          </Button>
       </div>
 
       {/* Note panel with category-colored border/background and Last edited top-right */}
@@ -119,13 +145,13 @@ export function NoteEditor({ noteId }: { noteId?: string }) {
 
         <div className="flex-1 min-h-0 space-y-4 flex flex-col">
           <TextInput
-            value={note.title}
+            value={titleDraft}
             onChange={(e) => onTitleChange(e.currentTarget.value)}
             placeholder="Title"
             className="bg-transparent text-black placeholder:text-black text-2xl sm:text-3xl font-semibold"
           />
           <Textarea
-            value={note.content}
+            value={contentDraft}
             onChange={(e) => onContentChange(e.currentTarget.value)}
             placeholder="Write your note here…"
             className="flex-1 min-h-0 resize-none bg-transparent text-black placeholder:text-black"
@@ -138,24 +164,57 @@ export function NoteEditor({ noteId }: { noteId?: string }) {
 export function NoteCreateForm() {
   const { user } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const categories = useMemo(() => getCategories(), []);
-  const [category, setCategory] = useState<CategoryId>('random');
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [category, setCategory] = useState<string>('');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
 
   if (!user) return null;
 
-  const bg = CATEGORY_COLORS[category];
+  React.useEffect(() => {
+    let cancel = false;
+    (async () => {
+      const cs = await getCategories();
+      if (cancel) return;
+      setCategories(cs as Category[]);
 
-  function exitToDashboard() {
+      // Determine initial category selection based on prior filter (query param 'cat')
+      const catParam = (searchParams?.get('cat') || '').trim();
+      let initialId = '';
+      if (catParam) {
+        // Accept either alias (random|school|personal) or actual UUID
+        const byName: Record<string, string> = {};
+        for (const c of cs as any[]) byName[c.name.toLowerCase()] = c.id;
+        if (['random', 'school', 'personal'].includes(catParam)) {
+          const mapped =
+            (catParam === 'random' && (byName['random thoughts'] || byName['random'])) ||
+            (catParam === 'school' && byName['school']) ||
+            (catParam === 'personal' && byName['personal']) ||
+            '';
+          initialId = mapped || '';
+        } else {
+          // assume it's a UUID and validate it exists
+          initialId = (cs as any[]).some((c) => c.id === catParam) ? catParam : '';
+        }
+      }
+      if (!initialId && (cs as any[]).length > 0) initialId = (cs as any[])[0].id;
+      setCategory(initialId);
+    })();
+    return () => {
+      cancel = true;
+    };
+  }, [searchParams]);
+
+  async function exitToDashboard() {
     if (!user) return;
     if (!title && !content) {
       router.push('/dashboard');
       return;
     }
-    const n = createNote(user.id, category);
-    updateNote(user.id, n.id, { title, content });
+    const n = await createNote(user.id, (category as string) || undefined);
+    await updateNote(user.id, n.id, { title, content });
     router.replace('/dashboard');
   }
 
@@ -166,11 +225,11 @@ export function NoteCreateForm() {
         <select
           className="bg-transparent px-2 py-1 text-sm text-black outline-none"
           value={category}
-          onChange={(e) => setCategory(e.currentTarget.value as CategoryId)}
+          onChange={(e) => setCategory(e.currentTarget.value)}
         >
           {categories.map((c) => (
             <option key={c.id} value={c.id}>
-              {CATEGORY_NAME[c.id]}
+              {c.name}
             </option>
           ))}
         </select>
@@ -187,7 +246,10 @@ export function NoteCreateForm() {
       {/* Note panel with padding and thick border */}
       <div
         className="rounded-xl border-[5px] p-4 sm:p-6 min-h-[calc(100vh-8rem)]"
-        style={{ backgroundColor: `${bg}88`, border: `6px solid ${bg}` }}
+        style={{
+          backgroundColor: `${categories.find((x) => x.id === category)?.color ?? '#F3E6D4'}88`,
+          border: `6px solid ${categories.find((x) => x.id === category)?.color ?? '#88642A'}`,
+        }}
       >
         <div className="space-y-4">
           <TextInput

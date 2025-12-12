@@ -37,11 +37,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       loading,
       async signIn(email: string, password: string) {
-        const u = apiSignIn(email, password);
+        const u = await apiSignIn(email, password);
         setUser(u as AuthUser);
       },
       async signUp(email: string, password: string) {
-        const u = apiSignUp(email, password);
+        const u = await apiSignUp(email, password);
         setUser(u as AuthUser);
       },
       signOut() {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { CATEGORY_NAME, CATEGORY_COLORS, CategoryId, Note } from '@/src/lib/model';
 import { formatRelativeMD, truncate } from '@/src/lib/model';
@@ -76,7 +76,7 @@ export function PasswordInput({
         className="absolute inset-y-0 right-0 flex items-center px-3 cursor-pointer"
         aria-label={visible ? 'Hide password' : 'Show password'}
       >
-        <img src="/icons/eye.png" alt="Toggle visibility" className="h-4 w-4" />
+        <img src={visible ? '/icons/eye-open.png' : '/icons/eye.png'} alt="Toggle visibility" className="h-4 w-4" />
       </button>
     </div>
   );
@@ -128,7 +128,7 @@ export function NoteCard({
   onClick?: () => void;
   className?: string;
 }) {
-  const bg = CATEGORY_COLORS[note.categoryId];
+  const bg = note.category_color;
   const date = formatRelativeMD(note.updatedAt);
   const previewTitle = note.title.trim() || 'Untitled';
   const previewContent = note.content.trim();
@@ -168,37 +168,45 @@ export function Sidebar({
 }) {
   const { user, signOut } = useAuth();
 
-  const counts = useMemo(
-    () =>
-      user ? getCategoryCounts(user.id) : { random: 0, school: 0, personal: 0 },
-    [user]
-  );
+  // Load counts by category_name from notes
+  const [countsByName, setCountsByName] = useState<Record<string, number>>({});
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      if (!user) {
+        setCountsByName({});
+        return;
+      }
+      const m = await getCategoryCounts(user.id);
+      if (!cancel) setCountsByName(m);
+    })();
+    return () => {
+      cancel = true;
+    };
+  }, [user]);
 
   const items: Array<{ id: CategoryId | 'all'; label: string; color?: string; count?: number }> =
     useMemo(
       () => [
-        { id: 'all', label: 'All Notes' },
-        { id: 'random', label: 'Random Thoughts', color: CATEGORY_COLORS.random, count: counts.random },
-        { id: 'school', label: 'School', color: CATEGORY_COLORS.school, count: counts.school },
-        { id: 'personal', label: 'Personal', color: CATEGORY_COLORS.personal, count: counts.personal },
+        { id: 'all', label: 'All Categories' },
+        { id: 'random', label: 'Random Thoughts', color: CATEGORY_COLORS.random, count: countsByName['Random Thoughts'] ?? 0 },
+        { id: 'school', label: 'School', color: CATEGORY_COLORS.school, count: countsByName['School'] ?? 0 },
+        { id: 'personal', label: 'Personal', color: CATEGORY_COLORS.personal, count: countsByName['Personal'] ?? 0 },
       ],
-      [counts]
+      [countsByName]
     );
 
   // new note action moved to right panel header
 
   return (
     <aside className={cx('w-full sm:w-64 shrink-0', className)}>
-      <div className="flex items-center justify-between px-4 py-3">
-        <div className="text-sm font-semibold text-black">Categories</div>
-      </div>
       <nav className="px-2 pb-2">
         {items.map((item) => (
           <button
             key={item.id}
             onClick={() => onSelect(item.id)}
             className={cx(
-              'mb-1 flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-black',
+              'mb-1 flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-black cursor-pointer transition hover:brightness-90',
               selected === item.id ? 'font-bold' : 'font-normal'
             )}
           >
@@ -220,7 +228,7 @@ export function Sidebar({
       <div className="mt-2 px-4 py-3 text-xs text-black">
         <div className="mb-2 truncate font-bold">{user?.email ?? 'Guest'}</div>
         <div className="flex items-center gap-2">
-          <button onClick={signOut} className="text-red-600 hover:underline">
+          <button onClick={signOut} className="text-red-600 hover:underline cursor-pointer transition hover:brightness-90">
             Sign out
           </button>
         </div>

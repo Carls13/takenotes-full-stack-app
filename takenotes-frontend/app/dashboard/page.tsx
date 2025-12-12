@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Protected from '@/src/components/Protected';
 import { Sidebar, Button } from '@/src/components/ui';
@@ -14,10 +14,21 @@ export default function DashboardPage() {
   const router = useRouter();
   const [selected, setSelected] = useState<CategoryId | 'all'>('all');
 
-  const notes = useMemo(() => {
-    if (!user) return [];
-    if (selected === 'all') return getNotes(user.id);
-    return filterNotesByCategory(user.id, selected as CategoryId);
+  const [notes, setNotes] = useState<Note[]>([]);
+  useEffect(() => {
+    let cancel = false;
+    async function load() {
+      if (!user) return setNotes([]);
+      const data =
+        selected === 'all'
+          ? await getNotes(user.id)
+          : await filterNotesByCategory(user.id, selected as CategoryId);
+      if (!cancel) setNotes(data as Note[]);
+    }
+    load();
+    return () => {
+      cancel = true;
+    };
   }, [user, selected]);
 
   const title =
@@ -27,7 +38,8 @@ export default function DashboardPage() {
     router.push(`/notes/${n.id}`);
   };
   const handleNewNote = () => {
-    router.push('/notes/new');
+    const q = selected === 'all' ? '' : `?cat=${encodeURIComponent(selected)}`;
+    router.push(`/notes/new${q}`);
   };
 
   return (
