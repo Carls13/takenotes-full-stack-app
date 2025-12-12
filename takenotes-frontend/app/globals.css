@@ -26,3 +26,16 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Dark mode theme: dark grey background and white text */
+.theme-dark {
+  --background: #1f2937; /* dark gray (tailwind gray-800) */
+  --foreground: #ffffff;
+}
+
+/* Force common text utility to white under dark theme without changing note colors */
+.theme-dark .text-black { color: #ffffff !important; }
+.theme-dark .text-zinc-900 { color: #ffffff !important; }
+.theme-dark .placeholder\:text-black::placeholder { color: #ffffff !important; }
+.theme-dark .border { border-color: #374151 !important; }
+.theme-dark .bg-white { background-color: #111827 !important; }
