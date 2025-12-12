@@ -7,7 +7,7 @@ vi.mock('@/src/contexts/AuthContext', () => ({
   useAuth: () => ({ user: { id: 'me', email: 'a@b.c' }, loading: false, signOut: vi.fn(), signIn: vi.fn(), signUp: vi.fn() }),
 }));
 
-vi.mock('@/src/lib/mockApi', () => ({
+vi.mock('@/src/lib/service', () => ({
   getCategoryCounts: async (_userId: string) => ({ 'Random Thoughts': 3, School: 2, Personal: 1 }),
 }));
 

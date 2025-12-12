@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { CATEGORY_COLORS, CategoryId } from '@/src/lib/model';
-import { getCategoryCounts } from '@/src/lib/mockApi';
+import { getCategoryCounts } from '@/src/lib/service';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { cx } from './cx';
 

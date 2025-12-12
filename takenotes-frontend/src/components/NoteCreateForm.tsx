@@ -6,7 +6,7 @@ import { Category } from '@/src/lib/model';
 import { Button } from './Button';
 import { TextInput } from './TextInput';
 import { Textarea } from './Textarea';
-import { getCategories, createNote, updateNote } from '@/src/lib/mockApi';
+import { getCategories, createNote, updateNote } from '@/src/lib/service';
 import { useAuth } from '@/src/contexts/AuthContext';
 
 export function NoteCreateForm() {

@@ -9,7 +9,7 @@ import { NotesGrid } from '@/src/components/NotesGrid';
 import { EmptyState } from '@/src/components/EmptyState';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { CATEGORY_NAME, CategoryId, Note } from '@/src/lib/model';
-import { filterNotesByCategory, getNotes } from '@/src/lib/mockApi';
+import { filterNotesByCategory, getNotes } from '@/src/lib/service';
 
 export default function DashboardPage() {
   const { user } = useAuth();

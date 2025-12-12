@@ -2,6 +2,7 @@
 
 'use client';
 
+import axios, { AxiosError } from 'axios';
 import { Category, CategoryId, Note, User } from './model';
 
 const BASE = 'http://localhost:8000';
@@ -30,37 +31,43 @@ function clearTokens() {
   localStorage.removeItem(AUTH.email);
 }
 
-async function refreshIfNeeded(resp: Response, retry: () => Promise<Response>): Promise<Response> {
-  if (resp.status !== 401) return resp;
-  const refresh = getRefresh();
-  if (!refresh) return resp;
-  const r = await fetch(`${BASE}/api/auth/token/refresh/`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refresh }),
-  });
-  if (!r.ok) return resp;
-  const data = await r.json();
-  const newAccess = data.access as string;
-  if (newAccess) {
-    localStorage.setItem(AUTH.access, newAccess);
-    return retry();
-  }
-  return resp;
-}
+// Axios instance with auth and auto-refresh logic
+const http = axios.create({ baseURL: BASE, headers: { 'Content-Type': 'application/json' } });
 
-async function api(path: string, init?: RequestInit): Promise<Response> {
+http.interceptors.request.use((config) => {
   const access = getAccess();
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (access) headers['Authorization'] = `Bearer ${access}`;
-  const attempt = () => fetch(`${BASE}${path}`, { ...init, headers: { ...headers, ...(init?.headers as any) } });
-  const res = await attempt();
-  if (res.status === 401) {
-    const retryRes = await refreshIfNeeded(res, attempt);
-    if (retryRes !== res) return retryRes;
+  if (access) {
+    config.headers = config.headers ?? {};
+    (config.headers as any)['Authorization'] = `Bearer ${access}`;
   }
-  return res;
-}
+  return config;
+});
+
+http.interceptors.response.use(
+  (response) => response,
+  async (error: AxiosError) => {
+    const originalRequest: any = error.config;
+    const status = error.response?.status;
+    if (status === 401 && !originalRequest?._retry) {
+      const refresh = getRefresh();
+      if (!refresh) return Promise.reject(error);
+      try {
+        const r = await axios.post(`${BASE}/api/auth/token/refresh/`, { refresh }, { headers: { 'Content-Type': 'application/json' } });
+        const newAccess = (r.data as any)?.access as string | undefined;
+        if (newAccess) {
+          localStorage.setItem(AUTH.access, newAccess);
+          originalRequest._retry = true;
+          originalRequest.headers = originalRequest.headers ?? {};
+          originalRequest.headers['Authorization'] = `Bearer ${newAccess}`;
+          return http(originalRequest);
+        }
+      } catch (e) {
+        // fallthrough to reject
+      }
+    }
+    return Promise.reject(error);
+  }
+);
 
 // Auth
 export function getCurrentUser(): Omit<User, 'passwordHash'> | null {
@@ -75,14 +82,8 @@ export function signOut(): void {
 }
 
 export async function signUp(email: string, password: string): Promise<Omit<User, 'passwordHash'>> {
-  const r = await fetch(`${BASE}/api/auth/register/`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    // Backend registers with {email, password}; it then uses email as username internally
-    body: JSON.stringify({ username: email, password }),
-  });
-  if (!r.ok) throw new Error('Failed to register');
-  const data = await r.json();
+  // Backend registers with {username, password}; it then uses email as username internally
+  const { data } = await http.post('/api/auth/register/', { username: email, password });
   // Tokens are nested under "tokens" for register response
   const access = data?.tokens?.access ?? data?.access;
   const refresh = data?.tokens?.refresh ?? data?.refresh;
@@ -92,30 +93,20 @@ export async function signUp(email: string, password: string): Promise<Omit<User
 }
 
 export async function signIn(email: string, password: string): Promise<Omit<User, 'passwordHash'>> {
-  const r = await fetch(`${BASE}/api/auth/token/`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: email, password }),
-  });
-  if (!r.ok) throw new Error('Failed to sign in');
-  const data = await r.json();
-  setTokens(data.access, data.refresh, email);
+  const { data } = await http.post('/api/auth/token/', { username: email, password });
+  setTokens((data as any).access, (data as any).refresh, email);
   return { id: 'me', email } as Omit<User, 'passwordHash'>;
 }
 
 // Categories
 export async function getCategories(): Promise<Category[]> {
-  const r = await api('/api/categories/');
-  if (!r.ok) throw new Error('Failed to load categories');
-  const data = await r.json();
+  const { data } = await http.get('/api/categories/');
   return data as Category[];
 }
 
 export async function getCategoryCounts(_userId: string): Promise<Record<string, number>> {
   // Build counts by category_name from the notes list (server provides category_name on each note)
-  const r = await api('/api/notes/');
-  if (!r.ok) throw new Error('Failed to load notes');
-  const data = await r.json();
+  const { data } = await http.get('/api/notes/');
   const counts: Record<string, number> = {};
   for (const n of (data as any[])) {
     const name = (n.category_name as string) || 'Uncategorized';
@@ -142,9 +133,7 @@ function toNote(n: any): Note {
 }
 
 export async function getNotes(_userId: string): Promise<Note[]> {
-  const r = await api('/api/notes/');
-  if (!r.ok) throw new Error('Failed to load notes');
-  const data = await r.json();
+  const { data } = await http.get('/api/notes/');
   return (data as any[]).map(toNote);
 }
 
@@ -162,25 +151,23 @@ export async function filterNotesByCategory(_userId: string, categoryId?: Catego
       (categoryId === 'personal' && nameLookup['personal']) ||
       (categoryId as string);
   }
-  const r = await api(`/api/notes/?category=${encodeURIComponent(cid)}`);
-  if (!r.ok) throw new Error('Failed to load notes');
-  const data = await r.json();
+  const { data } = await http.get(`/api/notes/?category=${encodeURIComponent(cid)}`);
   return (data as any[]).map(toNote);
 }
 
 export async function getNoteById(_userId: string, noteId: string): Promise<Note | null> {
-  const r = await api(`/api/notes/${noteId}/`);
-  if (!r.ok) return null;
-  const data = await r.json();
-  return toNote(data);
+  try {
+    const { data } = await http.get(`/api/notes/${noteId}/`);
+    return toNote(data);
+  } catch (e) {
+    return null;
+  }
 }
 
 export async function createNote(_userId: string, categoryId?: string): Promise<Note> {
   const body: any = {};
   if (categoryId) body.category = categoryId;
-  const r = await api('/api/notes/', { method: 'POST', body: JSON.stringify(body) });
-  if (!r.ok) throw new Error('Failed to create note');
-  const data = await r.json();
+  const { data } = await http.post('/api/notes/', body);
   return toNote(data);
 }
 
@@ -193,13 +180,11 @@ export async function updateNote(
   if (typeof patch.title === 'string') payload.title = patch.title;
   if (typeof patch.content === 'string') payload.content = patch.content;
   if (typeof patch.categoryId === 'string') payload.category = patch.categoryId;
-  const r = await api(`/api/notes/${noteId}/`, { method: 'PATCH', body: JSON.stringify(payload) });
-  if (!r.ok) throw new Error('Failed to update note');
-  const data = await r.json();
+  const { data } = await http.patch(`/api/notes/${noteId}/`, payload);
   return toNote(data);
 }
 
 export async function deleteNote(_userId: string, noteId: string): Promise<void> {
-  const r = await api(`/api/notes/${noteId}/`, { method: 'DELETE' });
-  if (!r.ok && r.status !== 204) throw new Error('Failed to delete note');
+  await http.delete(`/api/notes/${noteId}/`);
 }
+

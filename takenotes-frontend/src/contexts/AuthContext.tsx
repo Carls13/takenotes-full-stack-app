@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { getCurrentUser, signIn as apiSignIn, signOut as apiSignOut, signUp as apiSignUp } from '@/src/lib/mockApi';
+import { getCurrentUser, signIn as apiSignIn, signOut as apiSignOut, signUp as apiSignUp } from '@/src/lib/service';
 
 type AuthUser = {
   id: string;

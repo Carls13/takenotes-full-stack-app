@@ -7,7 +7,7 @@ import { formatRelativeMD } from '@/src/lib/model';
 import { Button } from './Button';
 import { TextInput } from './TextInput';
 import { Textarea } from './Textarea';
-import { getCategories, getNoteById, updateNote } from '@/src/lib/mockApi';
+import { getCategories, getNoteById, updateNote } from '@/src/lib/service';
 import { useAuth } from '@/src/contexts/AuthContext';
 
 export function NoteEditor({ noteId }: { noteId?: string }) {
