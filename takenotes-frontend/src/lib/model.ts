@@ -18,6 +18,28 @@ export interface Note {
   updatedAt: string; // ISO
 }
 
+// Backend Note payload (serializer)
+export type ApiNote = {
+  id: string;
+  title: string;
+  content: string;
+  category: string | null;
+  category_name?: string;
+  category_color?: string;
+  created_at: string;
+  updated_at: string;
+  last_edited?: string;
+  last_edited_label?: string;
+};
+
+// UI-augmented Note shape used by the app
+export type NoteWithExtras = Note & {
+  category_name?: string;
+  category_color?: string;
+  last_edited_label?: string;
+  category?: string | null;
+};
+
 export interface User {
   id: string;
   email: string;

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { CATEGORY_COLORS, Note } from '@/src/lib/model';
+import { CATEGORY_COLORS, Category, NoteWithExtras, CategoryId } from '@/src/lib/model';
 import { formatRelativeMD } from '@/src/lib/model';
 import { Button } from './Button';
 import { TextInput } from './TextInput';
@@ -16,8 +16,8 @@ export function NoteEditor({ noteId }: { noteId?: string }) {
   const params = useParams<{ id: string }>();
   const resolvedNoteId = noteId ?? params?.id;
   const [version, setVersion] = useState(0);
-  const [note, setNote] = useState<Note | null>(null);
-  const [categories, setCategories] = useState<any[]>([]);
+  const [note, setNote] = useState<NoteWithExtras | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [titleDraft, setTitleDraft] = useState<string>('');
   const [contentDraft, setContentDraft] = useState<string>('');
@@ -26,17 +26,17 @@ export function NoteEditor({ noteId }: { noteId?: string }) {
     let cancel = false;
     async function load() {
       if (!user || !resolvedNoteId) return;
-      const n = await getNoteById(user.id, resolvedNoteId);
+      const loaded = await getNoteById(user.id, resolvedNoteId);
       if (!cancel) {
-        setNote(n);
-        if (n) {
-          setSelectedCategory(((n as any).category as string) || (n.categoryId as any));
-          setTitleDraft(n.title ?? '');
-          setContentDraft(n.content ?? '');
+        setNote(loaded);
+        if (loaded) {
+          setSelectedCategory(((loaded as NoteWithExtras).category ?? loaded.categoryId) as unknown as string);
+          setTitleDraft(loaded.title ?? '');
+          setContentDraft(loaded.content ?? '');
         }
       }
       const cats = await getCategories();
-      if (!cancel) setCategories(cats as any[]);
+      if (!cancel) setCategories(cats);
     }
     load();
     return () => {
@@ -59,7 +59,7 @@ export function NoteEditor({ noteId }: { noteId?: string }) {
     );
   }
 
-  const bg = ((note as any).category_color as string) || CATEGORY_COLORS[note.categoryId];
+  const bg = note.category_color || CATEGORY_COLORS[note.categoryId];
   const lastEdited = formatRelativeMD(note.updatedAt);
 
   function onTitleChange(next: string) {
@@ -79,7 +79,7 @@ export function NoteEditor({ noteId }: { noteId?: string }) {
     await updateNote(user.id, note.id, {
       title: titleDraft,
       content: contentDraft,
-      categoryId: selectedCategory as any,
+      categoryId: selectedCategory as unknown as CategoryId,
     });
     router.push('/dashboard');
   }
@@ -93,10 +93,8 @@ export function NoteEditor({ noteId }: { noteId?: string }) {
           onChange={(e) => onCategoryChange(e.currentTarget.value)}
           disabled
         >
-          {categories.map((c: any) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </select>
         <Button

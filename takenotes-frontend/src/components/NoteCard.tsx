@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Note, CATEGORY_NAME } from '@/src/lib/model';
+import { NoteWithExtras, CATEGORY_NAME } from '@/src/lib/model';
 import { formatRelativeMD, truncate } from '@/src/lib/model';
 import { cx } from './cx';
 
@@ -10,11 +10,11 @@ export function NoteCard({
   onClick,
   className,
 }: {
-  note: Note;
+  note: NoteWithExtras;
   onClick?: () => void;
   className?: string;
 }) {
-  const bg = (note as any).category_color;
+  const bg = note.category_color ?? '#88642A';
   const date = formatRelativeMD(note.updatedAt);
   const previewTitle = note.title.trim() || 'Untitled';
   const previewContent = note.content.trim();
